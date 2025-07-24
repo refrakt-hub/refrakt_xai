@@ -1,13 +1,53 @@
-from typing import Any, Optional, Tuple
+"""
+Layer Grad-CAM XAI method for refrakt_xai.
+
+This module implements the Layer Grad-CAM method using Captum, providing
+layer-wise attribution for model predictions. It includes utilities for
+resolving target layers in various model architectures and registers the
+LayerGradCAMXAI class for use in the XAI registry.
+
+Typical usage:
+    xai = LayerGradCAMXAI(model, target_layer="auto")
+    attributions = xai.explain(input_tensor, target=target_class)
+"""
+
+from typing import Any, Optional
+
+from captum.attr import LayerAttribution, LayerGradCam  # type: ignore
 from torch import Tensor, nn
-from captum.attr import LayerGradCam, LayerAttribution
-from refrakt_xai.registry import register_xai
+
+# pylint: disable=import-error
 from refrakt_xai.base import BaseXAI
+from refrakt_xai.registry import register_xai
+from refrakt_xai.utils.layer_resolvers import (
+    _resolve_auto_target_layer_fallback,
+    _resolve_convnext_from_dict,
+    _resolve_convnext_layer,
+    _resolve_resnet_from_dict,
+    _resolve_resnet_layer,
+    _resolve_swin_from_dict,
+    _resolve_swin_layer,
+    _resolve_unknown_arch_fallback,
+    _resolve_vit_from_dict,
+    _resolve_vit_layer,
+)
 
 
 def resolve_layer(model: nn.Module, layer_path: str) -> nn.Module:
-    """Resolve a dot-separated string path to a model layer."""
-    parts = layer_path.split('.')
+    """
+    Resolve a dot-separated string path to a model layer.
+
+    Args:
+        model: The model containing the target layer.
+        layer_path: Dot-separated path to the layer (e.g., 'backbone.layer3.5').
+
+    Returns:
+        The resolved nn.Module corresponding to the path.
+
+    Raises:
+        ValueError: If the resolved object is not an nn.Module.
+    """
+    parts = layer_path.split(".")
     layer: Any = model
     for part in parts:
         if part.isdigit():
@@ -21,129 +61,104 @@ def resolve_layer(model: nn.Module, layer_path: str) -> nn.Module:
 
 def resolve_auto_target_layer(model: nn.Module) -> str:
     """
-    Return the recommended default layer path for Layer Grad-CAM for custom Refrakt models.
-    Now supports common wrappers (e.g., ResNetWrapper, ConvNeXtWrapper, ViTWrapper) by recursing into .backbone if present.
-    Prints all available named modules if auto-resolution fails.
+    Return the recommended default layer path for
+    Layer Grad-CAM for custom Refrakt models.
     """
-    # If the model is a wrapper with a .backbone attribute, recurse into it
     if hasattr(model, "backbone") and isinstance(getattr(model, "backbone"), nn.Module):
         return resolve_auto_target_layer(getattr(model, "backbone"))
-    # ResNet (custom)
-    if hasattr(model, "layer3"):
-        layer3 = getattr(model, "layer3")
-        if hasattr(layer3, "__len__") and hasattr(layer3, "__getitem__"):
-            last_idx = len(layer3) - 1
-            return f"layer3.{last_idx}"
-        return "layer3"
-    # ConvNeXt (custom)
-    if hasattr(model, "block3"):
-        return "block3"
-    # ViT (custom)
-    if hasattr(model, "blocks"):
-        blocks = getattr(model, "blocks")
-        if hasattr(blocks, "__len__") and hasattr(blocks, "__getitem__"):
-            last_idx = len(blocks) - 1
-            return f"blocks.{last_idx}"
-        return "blocks"
-    # Swin (custom)
-    if hasattr(model, "stage4"):
-        return "stage4"
-    # If we get here, print all available named modules for debugging
-    print("[LayerGradCAMXAI][DEBUG] Could not auto-resolve target layer. Available named modules:")
-    for name, module in model.named_modules():
-        print(f"  {name}: {module.__class__.__name__}")
-    raise ValueError("Auto target_layer not implemented for this model architecture. See above for available layers.")
+    for resolver in (
+        _resolve_resnet_layer,
+        _resolve_convnext_layer,
+        _resolve_vit_layer,
+        _resolve_swin_layer,
+    ):
+        result = resolver(model)
+        if result is not None:
+            return result
+    _resolve_auto_target_layer_fallback(model)
+    raise ValueError(
+        "Auto target_layer not implemented for this model architecture. "
+        "See above for available layers."
+    )
 
 
-def resolve_target_layer_from_dict(model: nn.Module, layer_dict: dict) -> str:
+def resolve_target_layer_from_dict(model: nn.Module, layer_dict: dict[str, Any]) -> str:
     """
     Resolve a dict-based target_layer specification to a string path for various architectures.
-    Supports keys like block, index, conv (ResNet), stage (Swin), head/block (ViT), etc.
-    Always prepends 'backbone.' unless prepend_backbone is False.
     """
-    prepend_backbone = layer_dict.get('prepend_backbone', True)
-    arch = layer_dict.get('arch', 'resnet').lower()  # Optionally allow explicit arch
-    # --- ResNet ---
-    if arch == 'resnet':
-        block = layer_dict.get('block', 3)
-        index = layer_dict.get('index', 'last')
-        conv = layer_dict.get('conv', 'last')
-        block_name = f"layer{block}"
-        # Get block sequence
-        base = model.backbone if prepend_backbone and hasattr(model, 'backbone') else model
-        block_seq = getattr(base, block_name, None)
-        if block_seq is None:
-            raise ValueError(f"[LayerGradCAMXAI] Could not find block '{block_name}' in model.")
-        block_idx = len(block_seq) - 1 if index == 'last' else int(index)
-        block_module = block_seq[block_idx]
-        # Get conv sequence (ResNet standard: conv2)
-        conv_seq = getattr(block_module, 'conv2', None)
-        if conv_seq is None:
-            raise ValueError(f"[LayerGradCAMXAI] Could not find 'conv2' in block '{block_name}.{block_idx}'.")
-        conv_idx = len(conv_seq) - 1 if conv == 'last' else int(conv)
-        path = f"{'backbone.' if prepend_backbone else ''}{block_name}.{block_idx}.conv2.{conv_idx}"
-        return path
-    # --- ViT ---
-    elif arch == 'vit':
-        block = layer_dict.get('block', 'last')
-        base = model.backbone if prepend_backbone and hasattr(model, 'backbone') else model
-        blocks = getattr(base, 'blocks', None)
-        if blocks is None:
-            raise ValueError("[LayerGradCAMXAI] Could not find 'blocks' in ViT model.")
-        block_idx = len(blocks) - 1 if block == 'last' else int(block)
-        path = f"{'backbone.' if prepend_backbone else ''}blocks.{block_idx}"
-        return path
-    # --- Swin ---
-    elif arch == 'swin':
-        stage = layer_dict.get('stage', 'stage4')
-        base = model.backbone if prepend_backbone and hasattr(model, 'backbone') else model
-        if not hasattr(base, stage):
-            raise ValueError(f"[LayerGradCAMXAI] Could not find stage '{stage}' in Swin model.")
-        path = f"{'backbone.' if prepend_backbone else ''}{stage}"
-        return path
-    # --- ConvNeXt ---
-    elif arch == 'convnext':
-        block = layer_dict.get('block', 'block3')
-        base = model.backbone if prepend_backbone and hasattr(model, 'backbone') else model
-        if not hasattr(base, block):
-            raise ValueError(f"[LayerGradCAMXAI] Could not find block '{block}' in ConvNeXt model.")
-        path = f"{'backbone.' if prepend_backbone else ''}{block}"
-        return path
-    else:
-        print(f"[LayerGradCAMXAI][DEBUG] Unknown architecture '{arch}'. Available named modules:")
-        for name, module in model.named_modules():
-            print(f"  {name}: {module.__class__.__name__}")
-        raise ValueError(f"[LayerGradCAMXAI] Unknown architecture '{arch}'. See above for available layers.")
+    prepend_backbone = layer_dict.get("prepend_backbone", True)
+    arch = layer_dict.get("arch", "resnet").lower()
+    if arch == "resnet":
+        return _resolve_resnet_from_dict(model, layer_dict, prepend_backbone)
+    if arch == "vit":
+        return _resolve_vit_from_dict(model, layer_dict, prepend_backbone)
+    if arch == "swin":
+        return _resolve_swin_from_dict(model, layer_dict, prepend_backbone)
+    if arch == "convnext":
+        return _resolve_convnext_from_dict(model, layer_dict, prepend_backbone)
+    _resolve_unknown_arch_fallback(model, arch)
+    raise RuntimeError(
+        "Unreachable: _resolve_unknown_arch_fallback should always raise"
+    )
 
 
 def resolve_target_layer(model: nn.Module, target_layer: Any) -> str:
     """
-    Resolve the target_layer argument, which can be:
-    - 'auto': use auto-resolver
-    - str: use as path (prepend 'backbone.' if needed)
-    - dict: use resolve_target_layer_from_dict
+    Resolve the target_layer argument for Layer Grad-CAM.
+
+    Supports 'auto', string paths, or dict-based specifications.
+
+    Args:
+        model: The model containing the target layer.
+        target_layer: Target layer specification ('auto', str, or dict).
+
+    Returns:
+        The dot-separated path to the resolved target layer.
+
+    Raises:
+        ValueError: If the target_layer type is unsupported.
     """
     if isinstance(target_layer, str):
-        if target_layer == 'auto':
+        if target_layer == "auto":
             resolved = resolve_auto_target_layer(model)
-            # If model has backbone and resolved does not start with 'backbone.', prepend it
-            if hasattr(model, 'backbone') and not resolved.startswith('backbone.'):
-                return f'backbone.{resolved}'
+            if hasattr(model, "backbone") and not resolved.startswith("backbone."):
+                return f"backbone.{resolved}"
             return resolved
-        # Patch: If model has backbone and path doesn't start with 'backbone.', prepend it
-        if hasattr(model, 'backbone') and not target_layer.startswith('backbone.'):
-            return f'backbone.{target_layer}'
+        if hasattr(model, "backbone") and not target_layer.startswith("backbone."):
+            return f"backbone.{target_layer}"
         return target_layer
-    elif isinstance(target_layer, dict):
+    if isinstance(target_layer, dict):
         return resolve_target_layer_from_dict(model, target_layer)
-    else:
-        raise ValueError(f"[LayerGradCAMXAI] target_layer must be a string, dict, or 'auto'. Got: {type(target_layer)}")
+    raise ValueError(
+        f"[LayerGradCAMXAI] target_layer must be a string, dict, or 'auto'. "
+        f"Got: {type(target_layer)}"
+    )
 
 
 @register_xai("layer_gradcam")
 class LayerGradCAMXAI(BaseXAI):
+    """
+    Layer Grad-CAM XAI method using Captum.
+
+    Computes attributions for a specific model layer using Grad-CAM.
+    Supports auto-resolution and flexible specification of target layers.
+
+    Attributes:
+        model: The model to be explained.
+        target_layer: Path to the target layer for Grad-CAM.
+        layer: The resolved nn.Module for Grad-CAM.
+        gradcam: Captum LayerGradCam object.
+    """
+
     def __init__(self, model: Any, target_layer: Any, **kwargs: Any) -> None:
-        # Support auto, string, or dict for target_layer
+        """
+        Initialize the LayerGradCAMXAI method.
+
+        Args:
+            model: The model to be explained.
+            target_layer: Target layer specification ('auto', str, or dict).
+            **kwargs: Additional parameters for the base class.
+        """
         resolved_layer = resolve_target_layer(model, target_layer)
         print(f"[XAI-DEBUG] Resolved target layer: {resolved_layer}")
         super().__init__(model, target_layer=resolved_layer, **kwargs)
@@ -155,34 +170,44 @@ class LayerGradCAMXAI(BaseXAI):
     def explain(
         self, input_tensor: Tensor, target: Optional[int] = None, **kwargs: Any
     ) -> Tensor:
-        # Captum workaround: set _captum_tracing flag on model
-        setattr(self.model, '_captum_tracing', True)
+        """
+        Generate Grad-CAM attributions for the given input and target.
+
+        Args:
+            input_tensor: Input tensor for which to compute attributions.
+            target: Optional target class index for explanation.
+            **kwargs: Additional parameters.
+
+        Returns:
+            Tensor of attributions with the same shape as input_tensor.
+        """
+        setattr(self.model, "_captum_tracing", True)
         try:
-            # Forward pass to get the output of the target layer
-            def _hook_fn(module, inp, out):
-                print(f"[XAI-DEBUG] Target layer output shape: {getattr(out, 'shape', 'N/A')}")
-                # Remove hook after first call
+
+            def _hook_fn(module: nn.Module, inp: Any, out: Any) -> None:
+                print(
+                    f"[XAI-DEBUG] Target layer output shape: {getattr(out, 'shape', 'N/A')}"
+                )
                 handle.remove()
+
             handle = self.layer.register_forward_hook(_hook_fn)
-            # Run a forward pass to trigger the hook
             _ = self.model(input_tensor)
-            # Now run GradCAM
             attributions = self.gradcam.attribute(input_tensor, target=target)
         finally:
-            if hasattr(self.model, '_captum_tracing'):
-                delattr(self.model, '_captum_tracing')
-        # Optionally upsample to input size
+            if hasattr(self.model, "_captum_tracing"):
+                delattr(self.model, "_captum_tracing")
         if hasattr(LayerAttribution, "interpolate"):
-            # Ensure attributions is a Tensor before interpolation
             if isinstance(attributions, tuple):
                 attributions = attributions[0]
-            interpolated = LayerAttribution.interpolate(attributions, input_tensor.shape[2:])
-            # If interpolate returns a tuple, take the first element
+            interpolated = LayerAttribution.interpolate(
+                attributions, input_tensor.shape[2:]
+            )
             if isinstance(interpolated, tuple):
                 attributions = interpolated[0]
             else:
                 attributions = interpolated
-        # Ensure return type is Tensor
         if isinstance(attributions, tuple):
             attributions = attributions[0]
-        return attributions 
+        if not isinstance(attributions, Tensor):
+            raise TypeError("Attributions must be a Tensor.")
+        return attributions

@@ -1,0 +1,12 @@
+# Runtime dependencies
+torch
+captum
+
+# For development (uncomment to install all dev tools)
+# pytest
+# isort
+# black
+# pylint
+# ruff
+# radon
+# lizard 

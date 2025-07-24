@@ -1,0 +1,33 @@
+[project]
+name = "refrakt_xai"
+version = "0.1.0"
+description = "Explainable AI methods for Refrakt"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "captum"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "isort",
+    "black",
+    "pylint",
+    "ruff",
+    "radon",
+    "lizard",
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+
+[tool.pylint]
+max-line-length = 88
+fail-under = 9.4
+
+[tool.ruff]
+line-length = 88 
