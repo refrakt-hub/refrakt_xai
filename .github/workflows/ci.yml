@@ -1,0 +1,70 @@
+name: Python package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install project and test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Uninstall installed refrakt_xai package (if present)
+      run: pip uninstall -y refrakt-xai || true
+
+    - name: Clean pycache and .pyc files
+      run: |
+        find . -name "__pycache__" -type d -exec rm -rf {} +
+        find . -name "*.pyc" -delete
+
+    - name: Run black
+      run: black --check --diff .
+
+    - name: Run isort
+      run: isort --check-only --diff .
+
+    - name: Run ruff
+      run: ruff check .
+
+    - name: Run pylint
+      run: pylint refrakt_xai/ --ignore=tests
+
+    - name: Run radon cyclomatic complexity
+      run: radon cc -nc -a -s refrakt_xai/
+
+    - name: Run lizard complexity
+      run: lizard -C 10 refrakt_xai/
+
+    - name: Test with pytest
+      run: |
+        export PYTHONPATH=$PWD
+        coverage run -m pytest tests/ -v
+        coverage report --show-missing
+        coverage xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
