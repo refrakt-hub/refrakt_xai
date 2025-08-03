@@ -2,14 +2,11 @@ import pytest
 import torch.nn as nn
 
 from refrakt_xai.utils.layer_resolvers import (
-    _resolve_convnext_from_dict,
     _resolve_convnext_layer,
     _resolve_resnet_from_dict,
     _resolve_resnet_layer,
-    _resolve_swin_from_dict,
     _resolve_swin_layer,
     _resolve_unknown_arch_fallback,
-    _resolve_vit_from_dict,
     _resolve_vit_layer,
 )
 

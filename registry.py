@@ -1,8 +1,9 @@
 """
 XAI method registry for refrakt_xai.
 
-This module provides a registry and decorators for registering and retrieving XAI methods by name.
-It enables dynamic lookup and extension of available XAI methods in the refrakt_xai package.
+This module provides a registry and decorators for registering and retrieving XAI
+methods by name. It enables dynamic lookup and extension of available XAI methods
+in the refrakt_xai package.
 
 Typical usage:
     @register_xai("my_method")

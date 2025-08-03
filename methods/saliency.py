@@ -10,18 +10,22 @@ Typical usage:
     attributions = xai.explain(input_tensor, target=target_class)
 """
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from captum.attr import Saliency  # type: ignore
 from torch import Tensor
 
-# pylint: disable=import-error
 from refrakt_xai.base import BaseXAI
 from refrakt_xai.registry import register_xai
+from refrakt_xai.utils.model_utils import (
+    cleanup_captum_tracing,
+    setup_captum_tracing,
+)
 
 
-# pylint: disable=too-few-public-methods
 @register_xai("saliency")
+@dataclass
 class SaliencyXAI(BaseXAI):
     """
     Saliency map XAI method using Captum.
@@ -31,22 +35,15 @@ class SaliencyXAI(BaseXAI):
 
     Attributes:
         model: The model to be explained.
-        abs: Whether to return absolute attributions (default: True).
+        abs_val: Whether to return absolute attributions (default: True).
         saliency: Captum Saliency object.
     """
 
-    def __init__(self, model: Any, abs_val: bool = True, **kwargs: Any) -> None:
-        """
-        Initialize the SaliencyXAI method.
+    abs_val: bool = True
 
-        Args:
-            model: The model to be explained.
-            abs_val: Whether to return absolute attributions (default: True).
-            **kwargs: Additional parameters for the base class.
-        """
-        super().__init__(model, **kwargs)
+    def __post_init__(self) -> None:
+        """Initialize the Captum Saliency object after dataclass initialization."""
         self.saliency = Saliency(self.model)
-        self.abs_val = abs_val
 
     def explain(
         self, input_tensor: Tensor, target: Optional[int] = None, **kwargs: Any
@@ -63,13 +60,12 @@ class SaliencyXAI(BaseXAI):
             Tensor of attributions with the same shape as input_tensor.
         """
         abs_val: bool = kwargs.get("abs", self.abs_val)
-        # Captum workaround: set _captum_tracing flag on model
-        setattr(self.model, "_captum_tracing", True)
+
+        setup_captum_tracing(self.model)
         try:
             attributions: Tensor = self.saliency.attribute(
                 input_tensor, target=target, abs=abs_val
             )
         finally:
-            if hasattr(self.model, "_captum_tracing"):
-                delattr(self.model, "_captum_tracing")
+            cleanup_captum_tracing(self.model)
         return attributions

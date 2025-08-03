@@ -7,9 +7,11 @@ All custom XAI methods should inherit from BaseXAI and implement the explain met
 The base class stores the model and any additional parameters required for explanation.
 """
 
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict
 
 
+@dataclass
 class BaseXAI:
     """
     Abstract base class for XAI methods.
@@ -22,20 +24,17 @@ class BaseXAI:
         params: Additional parameters for the XAI method.
     """
 
-    def __init__(self, model: Any, **kwargs: Any) -> None:
-        """
-        Initialize the XAI method with a model and optional parameters.
+    model: Any
+    params: Dict[str, Any] = field(default_factory=dict)
 
-        Args:
-            model: The model to be explained.
-            **kwargs: Additional parameters for the XAI method.
+    def __post_init__(self) -> None:
         """
-        self.model = model
-        self.params = kwargs
+        Post-initialization hook for any setup needed after
+        dataclass initialization.
+        """
+        # Override in subclasses if needed
 
-    def explain(
-        self, input_tensor: Any, target: Optional[Any] = None, **kwargs: Any
-    ) -> Any:
+    def explain(self, input_tensor: Any, target: Any = None, **kwargs: Any) -> Any:
         """
         Generate an explanation for the given input.
 
@@ -51,3 +50,12 @@ class BaseXAI:
             NotImplementedError: If the method is not implemented by a subclass.
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def get_model(self) -> Any:
+        """
+        Get the model being explained.
+
+        Returns:
+            The model object.
+        """
+        return self.model

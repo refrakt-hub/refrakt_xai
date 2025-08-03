@@ -1,4 +1,3 @@
-import pytest
 import torch
 
 from refrakt_xai.utils.concept_utils import (

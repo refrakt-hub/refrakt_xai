@@ -10,6 +10,7 @@ Typical usage:
     attributions = xai.explain(input_tensor, target=target_class)
 """
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from captum.attr import IntegratedGradients  # type: ignore
@@ -18,16 +19,22 @@ from torch import Tensor
 # pylint: disable=import-error
 from refrakt_xai.base import BaseXAI
 from refrakt_xai.registry import register_xai
+from refrakt_xai.utils.model_utils import (
+    cleanup_captum_tracing,
+    setup_captum_tracing,
+    validate_model_for_classification,
+)
 
 
-# pylint: disable=too-few-public-methods
 @register_xai("integrated_gradients")
+@dataclass
 class IntegratedGradientsXAI(BaseXAI):
     """
     Integrated Gradients XAI method using Captum.
 
-    Computes attributions by integrating gradients along a path from a baseline to the input.
-    Supports configurable number of integration steps.
+    Computes attributions by integrating gradients along a path
+    from a baseline to the input. Supports configurable number
+    of integration steps.
 
     Attributes:
         model: The model to be explained.
@@ -35,18 +42,14 @@ class IntegratedGradientsXAI(BaseXAI):
         ig: Captum IntegratedGradients object.
     """
 
-    def __init__(self, model: Any, n_steps: int = 50, **kwargs: Any) -> None:
-        """
-        Initialize the IntegratedGradientsXAI method.
+    n_steps: int = 50
 
-        Args:
-            model: The model to be explained.
-            n_steps: Number of integration steps (default: 50).
-            **kwargs: Additional parameters for the base class.
+    def __post_init__(self) -> None:
         """
-        super().__init__(model, n_steps=n_steps, **kwargs)
+        Initialize the Captum IntegratedGradients object
+        after dataclass initialization.
+        """
         self.ig = IntegratedGradients(self.model)
-        self.n_steps = n_steps
 
     def explain(
         self, input_tensor: Tensor, target: Optional[int] = None, **kwargs: Any
@@ -63,12 +66,16 @@ class IntegratedGradientsXAI(BaseXAI):
             Tensor of attributions with the same shape as input_tensor.
         """
         n_steps: int = kwargs.get("n_steps", self.n_steps)
-        setattr(self.model, "_captum_tracing", True)
+
+        validate_model_for_classification(
+            self.model, input_tensor, "Integrated Gradients"
+        )
+
+        setup_captum_tracing(self.model)
         try:
             attributions: Tensor = self.ig.attribute(
                 input_tensor, target=target, n_steps=n_steps
             )
         finally:
-            if hasattr(self.model, "_captum_tracing"):
-                delattr(self.model, "_captum_tracing")
+            cleanup_captum_tracing(self.model)
         return attributions

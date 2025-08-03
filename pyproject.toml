@@ -1,6 +1,6 @@
 [project]
 name = "refrakt_xai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Explainable AI methods for Refrakt"
 requires-python = ">=3.10"
 dependencies = [
@@ -11,6 +11,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
+    "coverage",
     "isort",
     "black",
     "pylint",
@@ -28,6 +30,57 @@ profile = "black"
 [tool.pylint]
 max-line-length = 88
 fail-under = 9.4
+ignore = ["tests"]
 
 [tool.ruff]
-line-length = 88 
+line-length = 88
+
+[tool.coverage.run]
+source = ["refrakt_xai"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/venv/*",
+    "*/.venv/*",
+    "*/env/*",
+    "*/.env/*",
+    "*/site-packages/*",
+    "*/dist-packages/*",
+    "*/build/*",
+    "*/dist/*",
+    "*/.pytest_cache/*",
+    "*/.mypy_cache/*",
+    "*/.ruff_cache/*",
+    "*/refrakt_xai.egg-info/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+    "# type: ignore",
+    "# noqa",
+    "# fmt: off",
+    "# fmt: on",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 80
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Refrakt XAI Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml" 

@@ -30,7 +30,7 @@ class DummyResNetLike(nn.Module):
 
 def test_layergradcamxai_smoke():
     model = DummyModel()
-    xai = LayerGradCAMXAI(model, target_layer="conv")
+    xai = LayerGradCAMXAI(model, layer="conv")
     input_tensor = torch.randn(2, 3, 8, 8, requires_grad=True)
     attributions = xai.explain(input_tensor)
     assert isinstance(attributions, torch.Tensor)
@@ -39,7 +39,7 @@ def test_layergradcamxai_smoke():
 
 def test_layergradcamxai_auto():
     model = DummyResNetLike()
-    xai = LayerGradCAMXAI(model, target_layer="auto")
+    xai = LayerGradCAMXAI(model, layer="auto")
     input_tensor = torch.randn(1, 3, 8, 8, requires_grad=True)
     attributions = xai.explain(input_tensor)
     assert attributions.shape[0] == input_tensor.shape[0]
@@ -50,6 +50,6 @@ def test_layergradcamxai_invalid_model():
         def forward(self, x):
             return x
 
-    # AttributeError is expected for missing layers
-    with pytest.raises(AttributeError):
-        LayerGradCAMXAI(BadModel(), target_layer="conv")
+    # ValueError is expected for missing layers
+    with pytest.raises(ValueError, match="Cannot resolve layer path"):
+        LayerGradCAMXAI(BadModel(), layer="conv")
