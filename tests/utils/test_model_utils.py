@@ -296,16 +296,17 @@ def test_get_model_device_with_parameters():
 
 def test_get_model_device_no_parameters():
     """Test getting model device when model has no parameters."""
+
     class NoParamModel(nn.Module):
         def forward(self, x):
             return x
 
     model = NoParamModel()
-    
+
     # Should return CPU device when no parameters exist
     device = get_model_device(model)
     assert isinstance(device, torch.device)
-    assert device.type == 'cpu'
+    assert device.type == "cpu"
 
 
 def test_create_dummy_input():

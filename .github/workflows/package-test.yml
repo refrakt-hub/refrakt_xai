@@ -57,7 +57,7 @@ jobs:
     - name: Test with pytest
       run: |
         export PYTHONPATH=$PWD
-        coverage run -m pytest tests/ -v
+        coverage run -m pytest --import-mode=importlib tests/ -v
         coverage report --show-missing
         coverage xml
 
