@@ -50,7 +50,30 @@ class OcclusionXAI(BaseXAI):
 
     def __post_init__(self) -> None:
         """Initialize the Captum Occlusion object after dataclass initialization."""
-        self.occlusion = Occlusion(self.model)
+        # Create a wrapper that extracts the primary tensor from ModelOutput
+        def model_wrapper(x: Tensor) -> Tensor:
+            output = self.model(x)
+            # Extract primary tensor from ModelOutput
+            if hasattr(output, 'reconstruction') and output.reconstruction is not None:
+                return output.reconstruction
+            elif hasattr(output, 'logits') and output.logits is not None:
+                return output.logits
+            elif hasattr(output, 'embeddings') and output.embeddings is not None:
+                return output.embeddings
+            elif hasattr(output, 'image') and output.image is not None:
+                return output.image
+            elif hasattr(output, '_get_primary_tensor'):
+                primary_tensor = output._get_primary_tensor()
+                if primary_tensor is not None:
+                    return primary_tensor
+                else:
+                    raise ValueError("No primary tensor available in ModelOutput")
+            elif isinstance(output, Tensor):
+                return output
+            else:
+                raise ValueError(f"Unable to extract primary tensor from model output: {type(output)}")
+        
+        self.occlusion = Occlusion(model_wrapper)
 
     def explain(
         self, input_tensor: Tensor, target: Optional[int] = None, **kwargs: Any
@@ -74,19 +97,34 @@ class OcclusionXAI(BaseXAI):
         baselines = kwargs.get("baselines", self.baselines)
 
         if sliding_window_shapes is None or sliding_window_shapes == (3, 15, 15):
-            c, h, w = (
-                input_tensor.shape[1],
-                input_tensor.shape[2],
-                input_tensor.shape[3],
-            )
-            window_h = min(7, h)
-            window_w = min(7, w)
-            sliding_window_shapes = (c, window_h, window_w)
+            # Handle different tensor shapes
+            if len(input_tensor.shape) == 4:  # [batch, channels, height, width]
+                c, h, w = (
+                    input_tensor.shape[1],
+                    input_tensor.shape[2],
+                    input_tensor.shape[3],
+                )
+                window_h = min(7, h)
+                window_w = min(7, w)
+                sliding_window_shapes = (c, window_h, window_w)
+            elif len(input_tensor.shape) == 2:  # [batch, features] - flattened data
+                # For flattened data, use 1D occlusion
+                features = input_tensor.shape[1]
+                window_size = min(10, features // 10)  # Use 10% of features as window
+                sliding_window_shapes = (window_size,)
+            else:
+                # Fallback for other shapes
+                sliding_window_shapes = (1,)
 
         if strides is None or strides == (3, 8, 8):
-            stride_h = max(1, sliding_window_shapes[1] // 2)
-            stride_w = max(1, sliding_window_shapes[2] // 2)
-            strides = (sliding_window_shapes[0], stride_h, stride_w)
+            if len(sliding_window_shapes) == 3:  # 3D window
+                stride_h = max(1, sliding_window_shapes[1] // 2)
+                stride_w = max(1, sliding_window_shapes[2] // 2)
+                strides = (sliding_window_shapes[0], stride_h, stride_w)
+            elif len(sliding_window_shapes) == 1:  # 1D window
+                strides = (max(1, sliding_window_shapes[0] // 2),)
+            else:
+                strides = (1,)
 
         setup_captum_tracing(self.model)
         try:

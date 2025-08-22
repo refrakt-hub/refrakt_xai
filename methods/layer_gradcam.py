@@ -11,7 +11,7 @@ Typical usage:
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union, Dict
 
 import torch
 from captum.attr import LayerGradCam  # type: ignore
@@ -107,6 +107,30 @@ class LayerGradCAMXAI(BaseXAI):
             ValueError: If the layer path cannot be resolved
         """
         return resolve_layer_path(self.model, layer_path)
+
+    def get_target_layer_info(self) -> Dict[str, Any]:
+        """
+        Get information about the target layer used for GradCAM.
+
+        Returns:
+            Dictionary containing layer information including layer path if available.
+        """
+        layer_info = {}
+        
+        if self.layer is not None:
+            # Try to find the layer name by searching through named modules
+            for name, module in self.model.named_modules():
+                if module is self.layer:
+                    layer_info["layer_name"] = name
+                    break
+            else:
+                # If we can't find the exact name, provide type info
+                layer_info["layer_type"] = self.layer.__class__.__name__
+                
+            # Add layer class name
+            layer_info["layer_class"] = self.layer.__class__.__name__
+            
+        return layer_info
 
     def explain(
         self,
