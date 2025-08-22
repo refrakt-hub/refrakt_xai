@@ -55,21 +55,27 @@ class DeepLiftXAI(BaseXAI):
         """
         # Detect model type by checking output structure
         with torch.no_grad():
-            sample_output = self.model(input_tensor[:1])  # Use single sample to detect output
-        
+            sample_output = self.model(
+                input_tensor[:1]
+            )  # Use single sample to detect output
+
         # Check if this is a classification model (has logits) vs reconstruction model
         is_classification_model = (
-            hasattr(sample_output, 'logits') and sample_output.logits is not None and
-            not (hasattr(sample_output, 'reconstruction') and sample_output.reconstruction is not None)
+            hasattr(sample_output, "logits")
+            and sample_output.logits is not None
+            and not (
+                hasattr(sample_output, "reconstruction")
+                and sample_output.reconstruction is not None
+            )
         )
-        
+
         if is_classification_model:
             # For classification models, use standard DeepLift with target
             if target is None:
                 # If no target provided, use predicted class
                 logits = sample_output.logits
                 target = int(torch.argmax(logits, dim=1).item())
-            
+
             # Use standard DeepLift for classification
             attributions = self.deeplift.attribute(input_tensor, target=target)
             return attributions
@@ -77,21 +83,24 @@ class DeepLiftXAI(BaseXAI):
             # For autoencoder/reconstruction models, use reconstruction-based wrapper
             # Similar approach to OcclusionXAI - extract the reconstruction tensor directly
             import torch.nn as nn
-            
+
             class AutoencoderReconstructionWrapper(nn.Module):
                 def __init__(self, model):
                     super().__init__()
                     self.model = model
-                
+
                 def forward(self, x: Tensor) -> Tensor:
                     output = self.model(x)
                     # Extract reconstruction from ModelOutput
                     reconstruction = None
-                    if hasattr(output, 'reconstruction') and output.reconstruction is not None:
+                    if (
+                        hasattr(output, "reconstruction")
+                        and output.reconstruction is not None
+                    ):
                         reconstruction = output.reconstruction
-                    elif hasattr(output, 'image') and output.image is not None:
+                    elif hasattr(output, "image") and output.image is not None:
                         reconstruction = output.image
-                    elif hasattr(output, '_get_primary_tensor'):
+                    elif hasattr(output, "_get_primary_tensor"):
                         recon = output._get_primary_tensor()
                         if recon is not None:
                             reconstruction = recon
@@ -100,22 +109,27 @@ class DeepLiftXAI(BaseXAI):
                     elif isinstance(output, Tensor):
                         reconstruction = output
                     else:
-                        raise ValueError(f"Unable to extract reconstruction tensor from model output: {type(output)}")
-                    
+                        raise ValueError(
+                            f"Unable to extract reconstruction tensor from model output: {type(output)}"
+                        )
+
                     # For DeepLift to work with reconstruction, we need to return a scalar per sample
                     # We'll sum the reconstruction loss (MSE-like) for each sample
                     # This gives DeepLift a single target to compute gradients for
                     batch_size = x.shape[0]
-                    reconstruction_loss = torch.sum((reconstruction - x).pow(2), dim=list(range(1, len(reconstruction.shape))))
+                    reconstruction_loss = torch.sum(
+                        (reconstruction - x).pow(2),
+                        dim=list(range(1, len(reconstruction.shape))),
+                    )
                     return reconstruction_loss
-            
+
             # Create a wrapper module instance
             model_wrapper = AutoencoderReconstructionWrapper(self.model)
-            
+
             # Create a new DeepLift instance with the reconstruction wrapper
             deeplift = DeepLift(model_wrapper)
-            
-            # For reconstruction-based attribution, DeepLift will compute attributions 
+
+            # For reconstruction-based attribution, DeepLift will compute attributions
             # with respect to the reconstruction loss (scalar per sample)
             # We don't need to specify a target since the output is already per-sample scalars
             attributions = deeplift.attribute(input_tensor)

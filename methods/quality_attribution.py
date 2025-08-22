@@ -64,13 +64,16 @@ class QualityAttributionXAI(BaseXAI):
     def _gradient_based_attribution(self, input_tensor: Tensor) -> Tensor:
         """Compute attributions using gradients w.r.t. quality metric."""
         input_tensor.requires_grad_(True)
-        
+
         with torch.enable_grad():
             # Get reconstruction
             reconstruction = self.model(input_tensor)
-            
+
             # Extract reconstruction from model output
-            if hasattr(reconstruction, '__class__') and reconstruction.__class__.__name__ == 'ModelOutput':
+            if (
+                hasattr(reconstruction, "__class__")
+                and reconstruction.__class__.__name__ == "ModelOutput"
+            ):
                 # ModelOutput from refrakt_core.schema.model_output
                 if reconstruction.reconstruction is not None:
                     recon = reconstruction.reconstruction
@@ -83,37 +86,44 @@ class QualityAttributionXAI(BaseXAI):
                 elif "reconstruction" in reconstruction:
                     recon = reconstruction["reconstruction"]
                 else:
-                    raise ValueError("Could not extract reconstruction from model output dict")
-            elif hasattr(reconstruction, 'recon') and reconstruction.recon is not None:
+                    raise ValueError(
+                        "Could not extract reconstruction from model output dict"
+                    )
+            elif hasattr(reconstruction, "recon") and reconstruction.recon is not None:
                 recon = reconstruction.recon
-            elif hasattr(reconstruction, 'reconstruction') and reconstruction.reconstruction is not None:
+            elif (
+                hasattr(reconstruction, "reconstruction")
+                and reconstruction.reconstruction is not None
+            ):
                 recon = reconstruction.reconstruction
             elif isinstance(reconstruction, Tensor):
                 # Simple autoencoder returns just the reconstruction
                 recon = reconstruction
             else:
                 raise ValueError("Could not extract reconstruction from model output")
-            
+
             # Compute quality metric
             if self.quality_metric == "ssim":
                 quality_score = self._compute_ssim(recon, input_tensor)
             elif self.quality_metric == "psnr":
                 quality_score = self._compute_psnr(recon, input_tensor)
             elif self.quality_metric == "mse":
-                quality_score = -self._compute_mse(recon, input_tensor)  # Negative because lower MSE is better
+                quality_score = -self._compute_mse(
+                    recon, input_tensor
+                )  # Negative because lower MSE is better
             else:
                 raise ValueError(f"Unsupported quality metric: {self.quality_metric}")
-            
+
             # Compute gradients
             quality_score.sum().backward()
-            
+
             # Get gradients w.r.t. input
             if input_tensor.grad is not None:
                 attributions = input_tensor.grad.clone()
                 input_tensor.grad.zero_()
             else:
                 attributions = torch.zeros_like(input_tensor)
-            
+
             # Scale attributions to reasonable range
             if attributions.numel() > 0:
                 current_std = attributions.std()
@@ -124,7 +134,7 @@ class QualityAttributionXAI(BaseXAI):
                 max_val = attributions.abs().max()
                 if max_val > 1.0:
                     attributions = attributions / max_val
-            
+
         return attributions
 
     def _perturbation_based_attribution(self, input_tensor: Tensor) -> Tensor:
@@ -132,9 +142,12 @@ class QualityAttributionXAI(BaseXAI):
         with torch.no_grad():
             # Get baseline reconstruction and quality
             baseline_reconstruction = self.model(input_tensor)
-            
+
             # Extract reconstruction from model output
-            if hasattr(baseline_reconstruction, '__class__') and baseline_reconstruction.__class__.__name__ == 'ModelOutput':
+            if (
+                hasattr(baseline_reconstruction, "__class__")
+                and baseline_reconstruction.__class__.__name__ == "ModelOutput"
+            ):
                 # ModelOutput from refrakt_core.schema.model_output
                 if baseline_reconstruction.reconstruction is not None:
                     baseline_recon = baseline_reconstruction.reconstruction
@@ -147,17 +160,25 @@ class QualityAttributionXAI(BaseXAI):
                 elif "reconstruction" in baseline_reconstruction:
                     baseline_recon = baseline_reconstruction["reconstruction"]
                 else:
-                    raise ValueError("Could not extract reconstruction from model output dict")
-            elif hasattr(baseline_reconstruction, 'recon') and baseline_reconstruction.recon is not None:
+                    raise ValueError(
+                        "Could not extract reconstruction from model output dict"
+                    )
+            elif (
+                hasattr(baseline_reconstruction, "recon")
+                and baseline_reconstruction.recon is not None
+            ):
                 baseline_recon = baseline_reconstruction.recon
-            elif hasattr(baseline_reconstruction, 'reconstruction') and baseline_reconstruction.reconstruction is not None:
+            elif (
+                hasattr(baseline_reconstruction, "reconstruction")
+                and baseline_reconstruction.reconstruction is not None
+            ):
                 baseline_recon = baseline_reconstruction.reconstruction
             elif isinstance(baseline_reconstruction, Tensor):
                 # Simple autoencoder returns just the reconstruction
                 baseline_recon = baseline_reconstruction
             else:
                 raise ValueError("Could not extract reconstruction from model output")
-            
+
             if self.quality_metric == "ssim":
                 baseline_quality = self._compute_ssim(baseline_recon, input_tensor)
             elif self.quality_metric == "psnr":
@@ -166,26 +187,32 @@ class QualityAttributionXAI(BaseXAI):
                 baseline_quality = -self._compute_mse(baseline_recon, input_tensor)
             else:
                 raise ValueError(f"Unsupported quality metric: {self.quality_metric}")
-            
+
             # Compute attributions by perturbing each input element
             attributions = torch.zeros_like(input_tensor)
             perturbation_size = 0.01  # Small perturbation
-            
+
             for i in range(input_tensor.shape[1]):
                 for j in range(input_tensor.shape[2]):
                     for k in range(input_tensor.shape[3]):
                         # Create perturbed input
                         perturbed_input = input_tensor.clone()
                         perturbed_input[:, i, j, k] += perturbation_size
-                        
+
                         # Get perturbed reconstruction and quality
                         perturbed_reconstruction = self.model(perturbed_input)
-                        
+
                         # Extract reconstruction from model output
-                        if hasattr(perturbed_reconstruction, '__class__') and perturbed_reconstruction.__class__.__name__ == 'ModelOutput':
+                        if (
+                            hasattr(perturbed_reconstruction, "__class__")
+                            and perturbed_reconstruction.__class__.__name__
+                            == "ModelOutput"
+                        ):
                             # ModelOutput from refrakt_core.schema.model_output
                             if perturbed_reconstruction.reconstruction is not None:
-                                perturbed_recon = perturbed_reconstruction.reconstruction
+                                perturbed_recon = (
+                                    perturbed_reconstruction.reconstruction
+                                )
                             else:
                                 continue
                         elif isinstance(perturbed_reconstruction, dict):
@@ -193,31 +220,47 @@ class QualityAttributionXAI(BaseXAI):
                             if "recon" in perturbed_reconstruction:
                                 perturbed_recon = perturbed_reconstruction["recon"]
                             elif "reconstruction" in perturbed_reconstruction:
-                                perturbed_recon = perturbed_reconstruction["reconstruction"]
+                                perturbed_recon = perturbed_reconstruction[
+                                    "reconstruction"
+                                ]
                             else:
                                 continue
-                        elif hasattr(perturbed_reconstruction, 'recon') and perturbed_reconstruction.recon is not None:
+                        elif (
+                            hasattr(perturbed_reconstruction, "recon")
+                            and perturbed_reconstruction.recon is not None
+                        ):
                             perturbed_recon = perturbed_reconstruction.recon
-                        elif hasattr(perturbed_reconstruction, 'reconstruction') and perturbed_reconstruction.reconstruction is not None:
+                        elif (
+                            hasattr(perturbed_reconstruction, "reconstruction")
+                            and perturbed_reconstruction.reconstruction is not None
+                        ):
                             perturbed_recon = perturbed_reconstruction.reconstruction
                         elif isinstance(perturbed_reconstruction, Tensor):
                             # Simple autoencoder returns just the reconstruction
                             perturbed_recon = perturbed_reconstruction
                         else:
                             continue
-                        
+
                         if self.quality_metric == "ssim":
-                            perturbed_quality = self._compute_ssim(perturbed_recon, perturbed_input)
+                            perturbed_quality = self._compute_ssim(
+                                perturbed_recon, perturbed_input
+                            )
                         elif self.quality_metric == "psnr":
-                            perturbed_quality = self._compute_psnr(perturbed_recon, perturbed_input)
+                            perturbed_quality = self._compute_psnr(
+                                perturbed_recon, perturbed_input
+                            )
                         elif self.quality_metric == "mse":
-                            perturbed_quality = -self._compute_mse(perturbed_recon, perturbed_input)
+                            perturbed_quality = -self._compute_mse(
+                                perturbed_recon, perturbed_input
+                            )
                         else:
                             continue
-                        
+
                         # Compute attribution as change in quality
-                        attributions[:, i, j, k] = (perturbed_quality - baseline_quality) / perturbation_size
-            
+                        attributions[:, i, j, k] = (
+                            perturbed_quality - baseline_quality
+                        ) / perturbation_size
+
             # Scale attributions to reasonable range
             if attributions.numel() > 0:
                 current_std = attributions.std()
@@ -228,7 +271,7 @@ class QualityAttributionXAI(BaseXAI):
                 max_val = attributions.abs().max()
                 if max_val > 1.0:
                     attributions = attributions / max_val
-            
+
             return attributions
 
     def _compute_ssim(self, x: Tensor, y: Tensor) -> Tensor:
@@ -236,7 +279,7 @@ class QualityAttributionXAI(BaseXAI):
         # Ensure tensors have the same shape
         if x.shape != y.shape:
             raise ValueError(f"Tensor shapes must match: {x.shape} vs {y.shape}")
-        
+
         # Handle different tensor dimensions
         if x.dim() == 1:
             # 1D tensors - use simple correlation
@@ -266,39 +309,60 @@ class QualityAttributionXAI(BaseXAI):
             y_norm = (y - y.mean()) / (y.std() + 1e-8)
             correlation = (x_norm * y_norm).mean()
             return correlation
-    
+
     def _compute_ssim_2d(self, x: Tensor, y: Tensor) -> Tensor:
         """Compute SSIM for 2D spatial tensors."""
         # Ensure we have 4D tensors (batch, channel, height, width)
         if x.dim() != 4:
             raise ValueError(f"Expected 4D tensor, got {x.dim()}D")
-        
+
         # Simple SSIM implementation
-        mu_x = F.avg_pool2d(x, self.window_size, stride=1, padding=self.window_size//2)
-        mu_y = F.avg_pool2d(y, self.window_size, stride=1, padding=self.window_size//2)
-        
+        mu_x = F.avg_pool2d(
+            x, self.window_size, stride=1, padding=self.window_size // 2
+        )
+        mu_y = F.avg_pool2d(
+            y, self.window_size, stride=1, padding=self.window_size // 2
+        )
+
         mu_x_sq = mu_x.pow(2)
         mu_y_sq = mu_y.pow(2)
         mu_xy = mu_x * mu_y
-        
-        sigma_x_sq = F.avg_pool2d(x * x, self.window_size, stride=1, padding=self.window_size//2) - mu_x_sq
-        sigma_y_sq = F.avg_pool2d(y * y, self.window_size, stride=1, padding=self.window_size//2) - mu_y_sq
-        sigma_xy = F.avg_pool2d(x * y, self.window_size, stride=1, padding=self.window_size//2) - mu_xy
-        
-        c1 = 0.01 ** 2
-        c2 = 0.03 ** 2
-        
-        ssim = ((2 * mu_xy + c1) * (2 * sigma_xy + c2)) / ((mu_x_sq + mu_y_sq + c1) * (sigma_x_sq + sigma_y_sq + c2))
+
+        sigma_x_sq = (
+            F.avg_pool2d(
+                x * x, self.window_size, stride=1, padding=self.window_size // 2
+            )
+            - mu_x_sq
+        )
+        sigma_y_sq = (
+            F.avg_pool2d(
+                y * y, self.window_size, stride=1, padding=self.window_size // 2
+            )
+            - mu_y_sq
+        )
+        sigma_xy = (
+            F.avg_pool2d(
+                x * y, self.window_size, stride=1, padding=self.window_size // 2
+            )
+            - mu_xy
+        )
+
+        c1 = 0.01**2
+        c2 = 0.03**2
+
+        ssim = ((2 * mu_xy + c1) * (2 * sigma_xy + c2)) / (
+            (mu_x_sq + mu_y_sq + c1) * (sigma_x_sq + sigma_y_sq + c2)
+        )
         return ssim.mean()
 
     def _compute_psnr(self, x: Tensor, y: Tensor) -> Tensor:
         """Compute PSNR between two tensors."""
         mse = F.mse_loss(x, y)
         if mse == 0:
-            return torch.tensor(float('inf'))
+            return torch.tensor(float("inf"))
         max_val = torch.max(x).item()
         return 20 * torch.log10(torch.tensor(max_val)) - 10 * torch.log10(mse)
 
     def _compute_mse(self, x: Tensor, y: Tensor) -> Tensor:
         """Compute MSE between two tensors."""
-        return F.mse_loss(x, y) 
+        return F.mse_loss(x, y)

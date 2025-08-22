@@ -50,19 +50,20 @@ class OcclusionXAI(BaseXAI):
 
     def __post_init__(self) -> None:
         """Initialize the Captum Occlusion object after dataclass initialization."""
+
         # Create a wrapper that extracts the primary tensor from ModelOutput
         def model_wrapper(x: Tensor) -> Tensor:
             output = self.model(x)
             # Extract primary tensor from ModelOutput
-            if hasattr(output, 'reconstruction') and output.reconstruction is not None:
+            if hasattr(output, "reconstruction") and output.reconstruction is not None:
                 return output.reconstruction
-            elif hasattr(output, 'logits') and output.logits is not None:
+            elif hasattr(output, "logits") and output.logits is not None:
                 return output.logits
-            elif hasattr(output, 'embeddings') and output.embeddings is not None:
+            elif hasattr(output, "embeddings") and output.embeddings is not None:
                 return output.embeddings
-            elif hasattr(output, 'image') and output.image is not None:
+            elif hasattr(output, "image") and output.image is not None:
                 return output.image
-            elif hasattr(output, '_get_primary_tensor'):
+            elif hasattr(output, "_get_primary_tensor"):
                 primary_tensor = output._get_primary_tensor()
                 if primary_tensor is not None:
                     return primary_tensor
@@ -71,8 +72,10 @@ class OcclusionXAI(BaseXAI):
             elif isinstance(output, Tensor):
                 return output
             else:
-                raise ValueError(f"Unable to extract primary tensor from model output: {type(output)}")
-        
+                raise ValueError(
+                    f"Unable to extract primary tensor from model output: {type(output)}"
+                )
+
         self.occlusion = Occlusion(model_wrapper)
 
     def explain(

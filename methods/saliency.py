@@ -64,7 +64,9 @@ class SaliencyXAI(BaseXAI):
 
         setup_captum_tracing(self.model)
         try:
-            attributions: Tensor = self.saliency.attribute(input_tensor, target=target, abs=abs_val)
+            attributions: Tensor = self.saliency.attribute(
+                input_tensor, target=target, abs=abs_val
+            )
         finally:
             cleanup_captum_tracing(self.model)
         return attributions

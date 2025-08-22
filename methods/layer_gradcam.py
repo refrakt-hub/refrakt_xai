@@ -116,7 +116,7 @@ class LayerGradCAMXAI(BaseXAI):
             Dictionary containing layer information including layer path if available.
         """
         layer_info = {}
-        
+
         if self.layer is not None:
             # Try to find the layer name by searching through named modules
             for name, module in self.model.named_modules():
@@ -126,10 +126,10 @@ class LayerGradCAMXAI(BaseXAI):
             else:
                 # If we can't find the exact name, provide type info
                 layer_info["layer_type"] = self.layer.__class__.__name__
-                
+
             # Add layer class name
             layer_info["layer_class"] = self.layer.__class__.__name__
-            
+
         return layer_info
 
     def explain(

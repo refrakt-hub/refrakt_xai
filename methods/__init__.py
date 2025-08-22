@@ -16,7 +16,7 @@ from .quality_attribution import QualityAttributionXAI
 
 __all__ = [
     "DeepLiftXAI",
-    "IntegratedGradientsXAI", 
+    "IntegratedGradientsXAI",
     "LayerGradCAMXAI",
     "OcclusionXAI",
     "ReconstructionAttributionXAI",
