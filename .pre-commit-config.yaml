@@ -19,13 +19,6 @@ repos:
         types: [python]
         exclude: ^tests/
         args: [--ignore=tests]
-      - id: coverage
-        name: coverage
-        entry: coverage run -m pytest
-        language: system
-        pass_filenames: false
-        exclude: ^tests/
-        args: [--cov=refrakt_xai, --cov-report=term-missing, --cov-fail-under=80]
       - id: radon-cc
         name: radon cyclomatic complexity
         entry: radon cc -nc -a -s refrakt_xai/

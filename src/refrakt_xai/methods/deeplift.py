@@ -53,6 +53,13 @@ class DeepLiftXAI(BaseXAI):
         Returns:
             Tensor of attributions with the same shape as input_tensor.
         """
+        # Ensure input tensor is on the correct device
+        input_tensor = input_tensor.detach().requires_grad_(True)
+        device = input_tensor.device
+        
+        # Ensure model is on the same device
+        self.model = self.model.to(device)
+        
         # Detect model type by checking output structure
         with torch.no_grad():
             sample_output = self.model(

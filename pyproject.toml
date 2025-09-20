@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "refrakt_xai"
 version = "0.2.0"
@@ -83,4 +87,7 @@ directory = "htmlcov"
 title = "Refrakt XAI Coverage Report"
 
 [tool.coverage.xml]
-output = "coverage.xml" 
+output = "coverage.xml"
+
+[tool.setuptools.packages.find]
+where = ["src"] 

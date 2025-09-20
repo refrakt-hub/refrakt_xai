@@ -129,6 +129,13 @@ class OcclusionXAI(BaseXAI):
             else:
                 strides = (1,)
 
+        # Ensure input tensor is on the correct device
+        input_tensor = input_tensor.detach()
+        device = input_tensor.device
+        
+        # Ensure model is on the same device
+        self.model = self.model.to(device)
+
         setup_captum_tracing(self.model)
         try:
             attributions: Tensor = self.occlusion.attribute(

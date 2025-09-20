@@ -56,6 +56,13 @@ class QualityAttributionXAI(BaseXAI):
         Returns:
             Tensor of attributions with the same shape as input_tensor.
         """
+        # Ensure input tensor is on the correct device
+        input_tensor = input_tensor.detach()
+        device = input_tensor.device
+        
+        # Ensure model is on the same device
+        self.model = self.model.to(device)
+        
         if self.use_gradients:
             return self._gradient_based_attribution(input_tensor)
         else:

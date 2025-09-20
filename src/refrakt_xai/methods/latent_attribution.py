@@ -53,6 +53,13 @@ class LatentAttributionXAI(BaseXAI):
         Returns:
             Tensor of attributions with the same shape as input_tensor.
         """
+        # Ensure input tensor is on the correct device
+        input_tensor = input_tensor.detach()
+        device = input_tensor.device
+        
+        # Ensure model is on the same device
+        self.model = self.model.to(device)
+        
         target_dim = kwargs.get("latent_dim", self.latent_dim)
 
         if self.use_gradients:
