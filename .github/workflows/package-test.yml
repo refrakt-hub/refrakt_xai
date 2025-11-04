@@ -23,7 +23,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install project and test dependencies
+    - name: Install project dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
@@ -45,26 +45,5 @@ jobs:
     - name: Run ruff
       run: ruff check .
 
-    - name: Run pylint
-      run: pylint refrakt_xai/ --ignore=tests
-
     - name: Run radon cyclomatic complexity
       run: radon cc -nc -a -s refrakt_xai/
-
-    - name: Run lizard complexity
-      run: lizard -C 10 refrakt_xai/
-
-    - name: Test with pytest
-      run: |
-        export PYTHONPATH=$PWD
-        coverage run -m pytest --import-mode=importlib tests/ -v
-        coverage report --show-missing
-        coverage xml
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false

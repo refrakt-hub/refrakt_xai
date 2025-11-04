@@ -11,7 +11,7 @@ Typical usage:
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union, Dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 from captum.attr import LayerGradCam  # type: ignore

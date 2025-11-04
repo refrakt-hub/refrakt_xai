@@ -44,6 +44,7 @@ class SaliencyXAI(BaseXAI):
 
     def __post_init__(self) -> None:
         """Initialize the Captum Saliency object after dataclass initialization."""
+
         # Create a wrapper that handles different model types
         def model_wrapper(x: Tensor) -> Tensor:
             output = self.model(x)
@@ -73,7 +74,8 @@ class SaliencyXAI(BaseXAI):
                 return output
             else:
                 raise ValueError(
-                    f"Unable to extract primary tensor from model output: {type(output)}"
+                    f"Unable to extract primary tensor from model output: "
+                    f"{type(output)}"
                 )
 
         self.saliency = Saliency(model_wrapper)
@@ -97,23 +99,23 @@ class SaliencyXAI(BaseXAI):
         # Ensure input tensor requires gradients and is on the correct device
         input_tensor = input_tensor.detach().requires_grad_(True)
         device = input_tensor.device
-        
+
         # Ensure model is on the same device
         self.model = self.model.to(device)
-        
+
         setup_captum_tracing(self.model)
         try:
-            # For autoencoder models, we don't need a target since the wrapper returns scalars
-            # For classification models, target is required
+            # For autoencoder models, we don't need a target since the wrapper
+            # returns scalars. For classification models, target is required
             if target is None:
                 # Check if this is an autoencoder by testing the output
                 with torch.no_grad():
                     test_output = self.model(input_tensor[:1])
                     is_autoencoder = (
-                        hasattr(test_output, "reconstruction") 
+                        hasattr(test_output, "reconstruction")
                         and test_output.reconstruction is not None
                     )
-                
+
                 if is_autoencoder:
                     # For autoencoders, no target needed
                     attributions: Tensor = self.saliency.attribute(
@@ -121,7 +123,10 @@ class SaliencyXAI(BaseXAI):
                     )
                 else:
                     # For classification models, we need a target
-                    raise ValueError("Target not provided when necessary, cannot take gradient with respect to multiple outputs.")
+                    raise ValueError(
+                        "Target not provided when necessary, cannot take gradient "
+                        "with respect to multiple outputs."
+                    )
             else:
                 # Target provided, use it
                 attributions: Tensor = self.saliency.attribute(

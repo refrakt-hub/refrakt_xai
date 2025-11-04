@@ -70,7 +70,7 @@ def setup_captum_tracing(model: Any) -> None:
     Args:
         model: The model to set up tracing for.
     """
-    setattr(model, "_captum_tracing", True)
+    model._captum_tracing = True
 
 
 def cleanup_captum_tracing(model: Any) -> None:

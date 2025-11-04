@@ -7,8 +7,12 @@ simplify and modularize the logic in ConceptSaliencyXAI and related classes.
 
 Typical usage:
     label = extract_label_from_batch(batch)
-    append_latents_by_label(model, x, label, pos_label, neg_label, pos_latents, neg_latents)
-    append_latents_by_index(model, x, i, pos_indices, neg_indices, pos_latents, neg_latents)
+    append_latents_by_label(
+        model, x, label, pos_label, neg_label, pos_latents, neg_latents
+    )
+    append_latents_by_index(
+        model, x, i, pos_indices, neg_indices, pos_latents, neg_latents
+    )
 """
 
 from typing import Any, Optional, Sequence

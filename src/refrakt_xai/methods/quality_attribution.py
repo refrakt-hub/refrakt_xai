@@ -11,7 +11,7 @@ Typical usage:
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional, Literal
+from typing import Any, Literal, Optional
 
 import torch
 import torch.nn.functional as F
@@ -59,10 +59,10 @@ class QualityAttributionXAI(BaseXAI):
         # Ensure input tensor is on the correct device
         input_tensor = input_tensor.detach()
         device = input_tensor.device
-        
+
         # Ensure model is on the same device
         self.model = self.model.to(device)
-        
+
         if self.use_gradients:
             return self._gradient_based_attribution(input_tensor)
         else:
@@ -223,7 +223,8 @@ class QualityAttributionXAI(BaseXAI):
                             else:
                                 continue
                         elif isinstance(perturbed_reconstruction, dict):
-                            # VAE output format: {"recon": recon, "mu": mu, "logvar": logvar}
+                            # VAE output format: {"recon": recon, "mu": mu,
+                            # "logvar": logvar}
                             if "recon" in perturbed_reconstruction:
                                 perturbed_recon = perturbed_reconstruction["recon"]
                             elif "reconstruction" in perturbed_reconstruction:

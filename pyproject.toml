@@ -34,10 +34,11 @@ profile = "black"
 [tool.pylint]
 max-line-length = 88
 fail-under = 9.4
-ignore = ["tests"]
 
 [tool.ruff]
 line-length = 88
+target-version = "py310"
+lint.select = ["E", "F", "B"]
 
 [tool.coverage.run]
 source = ["refrakt_xai"]

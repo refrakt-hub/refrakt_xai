@@ -56,10 +56,10 @@ class DeepLiftXAI(BaseXAI):
         # Ensure input tensor is on the correct device
         input_tensor = input_tensor.detach().requires_grad_(True)
         device = input_tensor.device
-        
+
         # Ensure model is on the same device
         self.model = self.model.to(device)
-        
+
         # Detect model type by checking output structure
         with torch.no_grad():
             sample_output = self.model(
@@ -88,7 +88,8 @@ class DeepLiftXAI(BaseXAI):
             return attributions
         else:
             # For autoencoder/reconstruction models, use reconstruction-based wrapper
-            # Similar approach to OcclusionXAI - extract the reconstruction tensor directly
+            # Similar approach to OcclusionXAI - extract the reconstruction tensor
+            # directly
             import torch.nn as nn
 
             class AutoencoderReconstructionWrapper(nn.Module):
@@ -117,13 +118,14 @@ class DeepLiftXAI(BaseXAI):
                         reconstruction = output
                     else:
                         raise ValueError(
-                            f"Unable to extract reconstruction tensor from model output: {type(output)}"
+                            f"Unable to extract reconstruction tensor from model "
+                            f"output: {type(output)}"
                         )
 
-                    # For DeepLift to work with reconstruction, we need to return a scalar per sample
-                    # We'll sum the reconstruction loss (MSE-like) for each sample
-                    # This gives DeepLift a single target to compute gradients for
-                    batch_size = x.shape[0]
+                    # For DeepLift to work with reconstruction, we need to return a
+                    # scalar per sample. We'll sum the reconstruction loss (MSE-like)
+                    # for each sample. This gives DeepLift a single target to compute
+                    # gradients for
                     reconstruction_loss = torch.sum(
                         (reconstruction - x).pow(2),
                         dim=list(range(1, len(reconstruction.shape))),
@@ -137,7 +139,8 @@ class DeepLiftXAI(BaseXAI):
             deeplift = DeepLift(model_wrapper)
 
             # For reconstruction-based attribution, DeepLift will compute attributions
-            # with respect to the reconstruction loss (scalar per sample)
-            # We don't need to specify a target since the output is already per-sample scalars
+            # with respect to the reconstruction loss (scalar per sample).
+            # We don't need to specify a target since the output is already per-sample
+            # scalars
             attributions = deeplift.attribute(input_tensor)
             return attributions

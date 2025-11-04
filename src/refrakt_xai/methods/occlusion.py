@@ -73,7 +73,8 @@ class OcclusionXAI(BaseXAI):
                 return output
             else:
                 raise ValueError(
-                    f"Unable to extract primary tensor from model output: {type(output)}"
+                    f"Unable to extract primary tensor from model output: "
+                    f"{type(output)}"
                 )
 
         self.occlusion = Occlusion(model_wrapper)
@@ -132,7 +133,7 @@ class OcclusionXAI(BaseXAI):
         # Ensure input tensor is on the correct device
         input_tensor = input_tensor.detach()
         device = input_tensor.device
-        
+
         # Ensure model is on the same device
         self.model = self.model.to(device)
 

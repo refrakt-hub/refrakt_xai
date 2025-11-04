@@ -141,7 +141,7 @@ def _find_fallback_layer(
     Returns:
         First layer with spatial dimensions, or None.
     """
-    for name, module, spatial_dims in conv_layers:
+    for _name, module, spatial_dims in conv_layers:
         if spatial_dims is not None:
             return module
     return None
@@ -157,7 +157,7 @@ def find_layer_with_weights(model: nn.Module) -> Optional[nn.Module]:
     Returns:
         A layer with weights, or None if not found.
     """
-    for name, module in model.named_modules():
+    for _name, module in model.named_modules():
         if hasattr(module, "weight") and module.weight is not None:
             if isinstance(module, nn.Module):
                 return module

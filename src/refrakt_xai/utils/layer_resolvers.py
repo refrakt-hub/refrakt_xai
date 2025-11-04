@@ -26,7 +26,7 @@ def _resolve_resnet_layer(model: nn.Module) -> Optional[str]:
         The string path to the last block in layer3, or None if not found.
     """
     if hasattr(model, "layer3"):
-        layer3 = getattr(model, "layer3")
+        layer3 = model.layer3
         if hasattr(layer3, "__len__") and hasattr(layer3, "__getitem__"):
             last_idx = len(layer3) - 1
             return f"layer3.{last_idx}"
@@ -60,7 +60,7 @@ def _resolve_vit_layer(model: nn.Module) -> Optional[str]:
         The string path to the last block in blocks, or None if not found.
     """
     if hasattr(model, "blocks"):
-        blocks = getattr(model, "blocks")
+        blocks = model.blocks
         if hasattr(blocks, "__len__") and hasattr(blocks, "__getitem__"):
             last_idx = len(blocks) - 1
             return f"blocks.{last_idx}"
@@ -132,10 +132,12 @@ def _resolve_resnet_from_dict(
     conv_seq = getattr(block_module, "conv2", None)
     if conv_seq is None:
         raise ValueError(
-            f"[LayerGradCAMXAI] Could not find 'conv2' in block '{block_name}.{block_idx}'."
+            f"[LayerGradCAMXAI] Could not find 'conv2' in block "
+            f"'{block_name}.{block_idx}'."
         )
     conv_idx = len(conv_seq) - 1 if conv == "last" else int(conv)
-    path = f"{'backbone.' if prepend_backbone else ''}{block_name}.{block_idx}.conv2.{conv_idx}"
+    backbone_prefix = "backbone." if prepend_backbone else ""
+    path = f"{backbone_prefix}{block_name}.{block_idx}.conv2.{conv_idx}"
     return path
 
 
